@@ -23,6 +23,8 @@
 
 // If defined will dump all the unencoded RX data, and partial decode fails
 #define DUMP_RX
+// If defined USE_TIMER1_PRESCALE will use TIMER1 instead of micros() to time pulses
+//#define USE_TIMER1_PRESCALE 64
 
 static uint16_t g_TxId;
 static uint8_t g_TxCnt;
@@ -36,7 +38,7 @@ static uint16_t g_TxTotal;
 
 static char g_SerialBuff[40];
 
-struct tagWireVal
+static struct tagWireVal
 {
   uint8_t hdr;
   union {
@@ -75,12 +77,24 @@ volatile uint16_t pulse_433;
 
 static void pinChange(void)
 {
+#if defined(USE_TIMER1_PRESCALE)
+  if (bit_is_clear(TIFR1, TOV1))
+  {
+    uint16_t cnt = TCNT1;
+    pulse_433 = cnt;
+  }
+  TCNT1 = 0;
+  bitClear(TIFR1, TOV1);
+#else
   static uint16_t last_433;
+
   uint16_t now = micros();
   uint16_t cnt = now - last_433;
   if (cnt > 10)
     pulse_433 = cnt;
+
   last_433 = now;
+#endif
 }
 
 ISR(VECT) {
@@ -430,6 +444,39 @@ static void decodeRxPacket(void)
     Serial.println("CRC ERR");
 }
 
+static void txSetup(void)
+{
+#if defined(DPIN_OOK_TX)
+  pinModeFast(DPIN_OOK_TX, OUTPUT);
+  pinModeFast(DPIN_STARTTX_BUTTON, INPUT);
+  digitalWriteFast(DPIN_STARTTX_BUTTON, HIGH);
+
+  wireval.hdr = 0xfe;
+  g_TxTemperature = tempFToCnt(116.22);
+  g_TxFlags = 0x7c;
+  g_TxWatts = 5000;
+  g_TxTotal = 60000;
+#endif
+}
+
+static void rxSetup(void)
+{
+#if defined(DPIN_OOK_RX)
+#if defined(USE_TIMER1_PRESCALE)
+  TCCR1A = 0;
+#if (USE_TIMER1_PRESCALE == 64)
+  // 64 prescale = 16000000 / 65536 / 64 = 3.8Hz or 263ms
+  // Packets are 49ms long with a 65ms inter-packet delay
+  TCCR1B = bit(CS11) | bit(CS10);
+#elif defined(USE_TIMER1_PRESCALE)
+#error Invalid USE_TIMER1_PRESCALE
+#endif
+#endif
+
+  setupPinChangeInterrupt();
+#endif
+}
+
 static void ookTx(void)
 {
 #if defined(DPIN_OOK_TX)
@@ -483,6 +530,9 @@ static void ookRx(void)
   }
   if (v != 0)
   {
+#if defined(USE_TIMER1_PRESCALE)
+    v = (v * (uint32_t)USE_TIMER1_PRESCALE) / (F_CPU/1000000UL);
+#endif
     if (decodeRxPulse(v) == 1)
     {
       decodeRxPacket();
@@ -503,27 +553,16 @@ static void ookRx(void)
   }
 #endif // DPIN_OOK_RX
 }
+
 void setup() {
   Serial.begin(38400);
   Serial.println("$UCID,Powermon433,"__DATE__" "__TIME__);
 
   pinModeFast(DPIN_LED, OUTPUT);
 
-#if defined(DPIN_OOK_RX)
-  setupPinChangeInterrupt();
-#endif
+  txSetup();
+  rxSetup();
 
-#if defined(DPIN_OOK_TX)
-  pinModeFast(DPIN_OOK_TX, OUTPUT);
-  pinModeFast(DPIN_STARTTX_BUTTON, INPUT);
-  digitalWriteFast(DPIN_STARTTX_BUTTON, HIGH);
-  
-  wireval.hdr = 0xfe;
-  g_TxTemperature = tempFToCnt(116.22);
-  g_TxFlags = 0x7c;
-  g_TxWatts = 5000;
-  g_TxTotal = 60000;
-#endif
   g_TxId = DEFAULT_TX_ID;
 }
 
