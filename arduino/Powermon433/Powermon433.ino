@@ -24,8 +24,6 @@
 
 // If defined will dump all the encoded RX data, and partial decode fails
 #define DUMP_RX
-// If defined USE_TIMER1_PRESCALE will use TIMER1 instead of micros() to time pulses
-//#define USE_TIMER1_PRESCALE 64
 
 static uint16_t g_TxId;
 static uint8_t g_TxCnt;
@@ -79,15 +77,6 @@ volatile uint16_t pulse_433;
 
 static void pinChange(void)
 {
-#if defined(USE_TIMER1_PRESCALE)
-  if (bit_is_clear(TIFR1, TOV1))
-  {
-    uint16_t cnt = TCNT1;
-    pulse_433 = cnt;
-  }
-  TCNT1 = 0;
-  bitClear(TIFR1, TOV1);
-#else
   static uint16_t last_433;
 
   uint16_t now = micros();
@@ -96,7 +85,6 @@ static void pinChange(void)
     pulse_433 = cnt;
 
   last_433 = now;
-#endif
 }
 
 ISR(VECT) {
@@ -509,17 +497,6 @@ static void txSetup(void)
 static void rxSetup(void)
 {
 #if defined(DPIN_OOK_RX)
-#if defined(USE_TIMER1_PRESCALE)
-  TCCR1A = 0;
-#if (USE_TIMER1_PRESCALE == 64)
-  // 64 prescale = 16000000 / 65536 / 64 = 3.8Hz or 263ms
-  // Packets are 49ms long with a 65ms inter-packet delay
-  TCCR1B = bit(CS11) | bit(CS10);
-#elif defined(USE_TIMER1_PRESCALE)
-#error Invalid USE_TIMER1_PRESCALE
-#endif
-#endif
-
   setupPinChangeInterrupt();
 #endif
 }
@@ -575,10 +552,6 @@ static void ookRx(void)
   }
   if (v != 0)
   {
-    //Serial.println(v, DEC);
-#if defined(USE_TIMER1_PRESCALE)
-    v = (v * (uint32_t)USE_TIMER1_PRESCALE) / (F_CPU/1000000UL);
-#endif
     if (decodeRxPulse(v) == 1)
     {
       g_RxRssi = rf69ook_Rssi();
