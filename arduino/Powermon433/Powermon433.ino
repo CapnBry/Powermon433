@@ -12,16 +12,17 @@
 */
 #include <digitalWriteFast.h>
 #include <util/atomic.h>
+#include "rf69_ook.h"
 
-#define DPIN_OOK_RX 2
+#define DPIN_OOK_RX 8
 //#define DPIN_OOK_TX 3
 #define DPIN_STARTTX_BUTTON 7
-#define DPIN_LED    13
+#define DPIN_LED    9
 
 // The default ID of the transmitter to decode/encode from/to
 #define DEFAULT_TX_ID 0xfdcc
 
-// If defined will dump all the unencoded RX data, and partial decode fails
+// If defined will dump all the encoded RX data, and partial decode fails
 #define DUMP_RX
 // If defined USE_TIMER1_PRESCALE will use TIMER1 instead of micros() to time pulses
 //#define USE_TIMER1_PRESCALE 64
@@ -64,6 +65,7 @@ static uint16_t g_RxWattHours;
 
 static bool g_RxDirty;
 static uint32_t g_RxLast;
+static uint8_t g_RxRssi;
 
 #if DPIN_OOK_RX >= 14
 #define VECT PCINT1_vect
@@ -246,6 +248,32 @@ static uint8_t tempFToCnt(float temp)
 }
 #endif // defined(DPIN_OOK_TX)
 
+static void setRF69Freq(char *buf)
+{
+  static uint32_t khz;
+  if (*buf == '-')
+    khz -= 5;
+  else if (*buf == '+')
+    khz += 5;
+  else
+    khz = atol(buf);
+
+  Serial.print(khz, DEC); Serial.println(F("kHz"));
+
+  uint32_t val = khz * (524288.0 / 32000.0);
+  rf69ook_writeReg(0x01, 0x04); // standby
+  rf69ook_writeReg(0x07, (val >> 16) & 0xff);
+  rf69ook_writeReg(0x08, (val >> 8) & 0xff);
+  rf69ook_writeReg(0x09, val & 0xff);
+  rf69ook_writeReg(0x01, 0x10); // RX
+}
+
+static void setRf69Thresh(uint8_t val)
+{
+  Serial.print(F("OokFixedThresh="));
+  Serial.println(val, DEC);
+  rf69ook_writeReg(0x1d, val);
+}
 
 static void handleCommand(void)
 {
@@ -272,6 +300,10 @@ static void handleCommand(void)
     Serial.println(g_TxTotal, DEC);
     g_TxCnt = 5; // force next packet is total
     break;
+  case 'q':
+    Serial.print(F("freQ"));
+    setRF69Freq(&g_SerialBuff[1]);
+    break;
   case 't':
     Serial.print(F("Temp"));
     if (g_SerialBuff[1] != '?')
@@ -292,14 +324,27 @@ static void handleCommand(void)
       g_TxId = atoi(&g_SerialBuff[1]);
     Serial.println(g_TxId, DEC);
     break;
+  case 'z':
+    rf69ook_dumpRegs();
+    Serial.print(F("RX:")); Serial.println(digitalReadFast(DPIN_OOK_RX));
+    break;
+  case ']':
+    setRf69Thresh(rf69ook_readReg(0x1d)+5);
+    break;
+  case '[':
+    setRf69Thresh(rf69ook_readReg(0x1d)-5);
+    break;
+  case '*':
+    rf69ook_writeReg(0x1e, bit(1)); // AFC clear
+    break;
   }
 }
 
 static void serial_doWork(void)
 {
-  unsigned char len = strlen(g_SerialBuff);
   while (Serial.available())
   {
+    unsigned char len = strlen(g_SerialBuff);
     char c = Serial.read();
     // support CR, LF, or CRLF line endings
     if (c == '\n' || c == '\r')  
@@ -344,6 +389,7 @@ static bool decodeRxPulse(uint16_t width)
     // The only "extra long" long signals the end of the preamble
     if (width > 1200)
     {
+      rf69ook_startRssi();
       resetDecoder();
       return false;
     }
@@ -365,6 +411,7 @@ static bool decodeRxPulse(uint16_t width)
         decoderAddBit(1);
       else
         decoderAddBit(0);
+
       // If we have all 3 bytes, we're done
       if (decoder.pos > 2)
         return true;
@@ -482,8 +529,6 @@ static void ookTx(void)
 #if defined(DPIN_OOK_TX)
   static uint32_t g_LastTx;
 
-  serial_doWork();
-
   if (digitalReadFast(DPIN_STARTTX_BUTTON) == LOW)
   {
     for (uint8_t i=0; i<4; ++i)
@@ -530,11 +575,13 @@ static void ookRx(void)
   }
   if (v != 0)
   {
+    //Serial.println(v, DEC);
 #if defined(USE_TIMER1_PRESCALE)
     v = (v * (uint32_t)USE_TIMER1_PRESCALE) / (F_CPU/1000000UL);
 #endif
     if (decodeRxPulse(v) == 1)
     {
+      g_RxRssi = rf69ook_Rssi();
       decodeRxPacket();
       resetDecoder();
     }
@@ -543,14 +590,25 @@ static void ookRx(void)
   // If it has been more than 250ms since the last receive, dump the data
   else if (g_RxDirty && (millis() - g_RxLast) > 250U)
   {
-    Serial.print('['); Serial.print(millis(), DEC);
-    Serial.print(F("] Energy: ")); Serial.print(g_RxWattHours, DEC);
+ #if defined(DUMP_RX)
+   Serial.print('['); Serial.print(millis(), DEC); Serial.print(F("] "));
+#endif
+    Serial.print(F("Energy: ")); Serial.print(g_RxWattHours, DEC);
     Serial.print(F(" Wh, Power: ")); Serial.print(g_RxWatts, DEC);
     Serial.print(F(" W, Temp: ")); Serial.print(g_RxTemperature, DEC);
-    Serial.println(F(" F"));
+    Serial.print(F(" F, Rssi: ")); Serial.print(g_RxRssi, DEC);
+    Serial.println();
+
     g_RxDirty = false;
     digitalWriteFast(DPIN_LED, LOW);
   }
+ #if defined(DUMP_RX)
+  else if (g_RxLast != 0 && (millis() - g_RxLast) > 32000U)
+  {
+    Serial.print('['); Serial.print(millis(), DEC); Serial.println(F("] Missed"));
+    g_RxLast = millis();
+  }
+#endif
 #endif // DPIN_OOK_RX
 }
 
@@ -559,6 +617,8 @@ void setup() {
   Serial.println("$UCID,Powermon433,"__DATE__" "__TIME__);
 
   pinModeFast(DPIN_LED, OUTPUT);
+  if (rf69ook_init())
+    Serial.println(F("RF69 initialized"));
 
   txSetup();
   rxSetup();
@@ -570,4 +630,5 @@ void loop()
 {
   ookTx();
   ookRx();
+  //serial_doWork();
 }
