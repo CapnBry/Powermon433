@@ -53,6 +53,7 @@ bool rf69ook_init(void)
 
   delay(50);
   uint8_t deviceId = rf69ook_readReg(0x10);
+  // Should be 0x24 but as long as it isn't blank
   if (deviceId == 0x00 || deviceId == 0xff)
     return false;
 
