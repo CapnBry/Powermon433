@@ -14,10 +14,11 @@
 #include <util/atomic.h>
 #include "rf69_ook.h"
 
-#define DPIN_OOK_RX 8
+//#define DPIN_RF69_RESET 7
+#define DPIN_OOK_RX     8
 //#define DPIN_OOK_TX 3
 #define DPIN_STARTTX_BUTTON 7
-#define DPIN_LED    9
+#define DPIN_LED        9
 
 // The default ID of the transmitter to decode/encode from/to
 #define DEFAULT_TX_ID 0xfdcc
@@ -263,6 +264,20 @@ static void setRf69Thresh(uint8_t val)
   rf69ook_writeReg(0x1d, val);
 }
 
+static void resetRf69(void)
+{
+#if defined(DPIN_RF69_RESET)
+  const uint8_t pin = 7;
+  pinModeFast(pin, OUTPUT);
+  digitalWriteFast(pin, HIGH);
+  delayMicroseconds(100);
+  digitalWriteFast(pin, LOW);
+  pinModeFast(pin, INPUT);
+  delay(5);
+  Serial.println(F("RFM reset"));
+#endif // DPIN_RF69_RESET
+}
+
 static void handleCommand(void)
 {
   switch (g_SerialBuff[0])
@@ -317,13 +332,13 @@ static void handleCommand(void)
     Serial.print(F("RX:")); Serial.println(digitalReadFast(DPIN_OOK_RX));
     break;
   case ']':
-    setRf69Thresh(rf69ook_readReg(0x1d)+5);
+    setRf69Thresh(rf69ook_readReg(0x1d)+4);
     break;
   case '[':
-    setRf69Thresh(rf69ook_readReg(0x1d)-5);
+    setRf69Thresh(rf69ook_readReg(0x1d)-4);
     break;
   case '*':
-    rf69ook_writeReg(0x1e, bit(1)); // AFC clear
+    resetRf69();
     break;
   }
 }
@@ -476,7 +491,10 @@ static void decodeRxPacket(void)
     digitalWriteFast(DPIN_LED, HIGH);
   }
   else
-    Serial.println("CRC ERR");
+  {
+    Serial.print(F("CRC ERR (Rssi -")); Serial.print(g_RxRssi/2, DEC);
+    Serial.println(F(" dBm)"));
+  }
 }
 
 static void txSetup(void)
@@ -569,8 +587,8 @@ static void ookRx(void)
     Serial.print(F("Energy: ")); Serial.print(g_RxWattHours, DEC);
     Serial.print(F(" Wh, Power: ")); Serial.print(g_RxWatts, DEC);
     Serial.print(F(" W, Temp: ")); Serial.print(g_RxTemperature, DEC);
-    Serial.print(F(" F, Rssi: ")); Serial.print(g_RxRssi, DEC);
-    Serial.println();
+    Serial.print(F(" F, Rssi: -")); Serial.print(g_RxRssi/2, DEC);
+    Serial.println(F(" dBm"));
 
     g_RxDirty = false;
     digitalWriteFast(DPIN_LED, LOW);
@@ -587,7 +605,7 @@ static void ookRx(void)
 
 void setup() {
   Serial.begin(38400);
-  Serial.println("$UCID,Powermon433,"__DATE__" "__TIME__);
+  Serial.println(F("$UCID,Powermon433,"__DATE__" "__TIME__));
 
   pinModeFast(DPIN_LED, OUTPUT);
   if (rf69ook_init())
@@ -603,5 +621,5 @@ void loop()
 {
   ookTx();
   ookRx();
-  //serial_doWork();
+  serial_doWork();
 }
