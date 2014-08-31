@@ -14,11 +14,11 @@
 #include <util/atomic.h>
 #include "rf69_ook.h"
 
-//#define DPIN_RF69_RESET 7
-#define DPIN_OOK_RX     8
-//#define DPIN_OOK_TX 3
-#define DPIN_STARTTX_BUTTON 7
-#define DPIN_LED        9
+//#define DPIN_OOK_TX         3
+#define DPIN_STARTTX_BUTTON 6
+#define DPIN_RF69_RESET     7
+#define DPIN_OOK_RX         8
+#define DPIN_LED            9
 
 // The default ID of the transmitter to decode/encode from/to
 #define DEFAULT_TX_ID 0xfdcc
@@ -598,15 +598,13 @@ static void ookRx(void)
     printRssi();
 
     g_RxDirty = false;
-    digitalWriteFast(DPIN_LED, LOW);
   }
- #if defined(DUMP_RX)
   else if (g_RxLast != 0 && (millis() - g_RxLast) > 32000U)
   {
     Serial.print('['); Serial.print(millis(), DEC); Serial.println(F("] Missed"));
     g_RxLast = millis();
+    digitalWriteFast(DPIN_LED, LOW);
   }
-#endif
 #endif // DPIN_OOK_RX
 }
 
