@@ -77,12 +77,15 @@ bool rf69ook_init(void)
   //rf69ook_writeReg(0x19, 0b01001110); // 3.1khz
   //rf69ook_writeReg(0x19, 0b01001111); // 1.3khz
 
-  //rf69ook_writeReg(0x18, 0x80); // 200 ohm auto lna gain (default)
-  //rf69ook_writeReg(0x18, 0x81); // 200 ohm auto lna max gain
+  //rf69ook_writeReg(0x18, 0x80); // 200 ohm auto lna gain
+  rf69ook_writeReg(0x18, 0x08); // 50 ohm auto gain (default)
+  //rf69ook_writeReg(0x18, 0x81); // 200 ohm lna max gain
+  //rf69ook_writeReg(0x18, 0x01); // 50ohm lna max gain
+  //rf69ook_writeReg(0x18, 0x08); // -12db gain
 
-  //rf69ook_writeReg(0x1b, 0b01000000); //peak OOK threshold (default)
+  rf69ook_writeReg(0x1b, 0b01000000); //peak OOK threshold (default)
   //rf69ook_writeReg(0x1b, 0b00000000); //fixed OOK threshold
-  //rf69ook_writeReg(0x1d, 0x30); // OokFixedThresh
+  rf69ook_writeReg(0x1d, 0x30); // OokFixedThresh (noise floor when used in peak mode)
 
   //rf69ook_writeReg(0x29, 0xe4); // RssiThreshold (default)
   //rf69ook_writeReg(0x2e, 0x18); // SYNC off, sync size 3, 0 errors
