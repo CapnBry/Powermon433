@@ -459,6 +459,12 @@ static void decodePowermon(uint16_t val16)
   }
 }
 
+static void printRssi(void)
+{
+  Serial.print(F(" (Rssi -")); Serial.print(g_RxRssi/2, DEC);
+  Serial.println(F(" dBm)"));
+}
+
 static void decodeRxPacket(void)
 {
 #if defined(DUMP_RX)
@@ -474,9 +480,10 @@ static void decodeRxPacket(void)
   uint16_t val16 = *(uint16_t *)decoder.data;
   if (crc8(decoder.data, 3) == 0)
   {
-    g_TxId = val16;
-    Serial.print("NEW DEVICE id=");
-    Serial.println(val16, HEX);
+    g_TxId = decoder.data[1] << 8 | decoder.data[0];
+    Serial.print(F("NEW DEVICE id="));
+    Serial.print(val16, HEX);
+    printRssi();
     return;
   }
 
@@ -492,8 +499,8 @@ static void decodeRxPacket(void)
   }
   else
   {
-    Serial.print(F("CRC ERR (Rssi -")); Serial.print(g_RxRssi/2, DEC);
-    Serial.println(F(" dBm)"));
+    Serial.print(F("CRC ERR"));
+    printRssi();
   }
 }
 
@@ -587,8 +594,8 @@ static void ookRx(void)
     Serial.print(F("Energy: ")); Serial.print(g_RxWattHours, DEC);
     Serial.print(F(" Wh, Power: ")); Serial.print(g_RxWatts, DEC);
     Serial.print(F(" W, Temp: ")); Serial.print(g_RxTemperature, DEC);
-    Serial.print(F(" F, Rssi: -")); Serial.print(g_RxRssi/2, DEC);
-    Serial.println(F(" dBm"));
+    Serial.print(F(" F"));
+    printRssi();
 
     g_RxDirty = false;
     digitalWriteFast(DPIN_LED, LOW);
