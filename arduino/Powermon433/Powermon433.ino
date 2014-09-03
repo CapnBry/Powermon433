@@ -440,20 +440,19 @@ static void decodePowermon(uint16_t val16)
 {
   switch (decoder.data[0] & 3)
   {
-  case 0: 
-  case 1:
+  case OOK_PACKET_INSTANT:
     // val16 is the number of milliseconds between blinks
     // Each blink is one watt hour consumed
     g_RxWatts = 3600000UL / val16;
     break;
 
-  case 2:
+  case OOK_PACKET_TEMP:
     //float f = decoder.data[1] * 0.823 - 28.63;
     g_RxTemperature = (int8_t)(decoder.data[1] * 210U / 256U) - 28;
     g_RxFlags = decoder.data[0];
     break;
 
-  case 3:
+  case OOK_PACKET_TOTAL:
     g_RxWattHours = val16;
     break;
   }
