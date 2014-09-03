@@ -10,7 +10,6 @@
     via Stewart Russell's blog http://scrus.org/
   Additional work and porting to ATmega by Bryan Mayland
 */
-#include <digitalWriteFast.h>
 #include <util/atomic.h>
 #include "rf69_ook.h"
 
@@ -94,7 +93,7 @@ ISR(VECT) {
 
 static void setupPinChangeInterrupt ()
 {
-  pinModeFast(DPIN_OOK_RX, INPUT);
+  pinMode(DPIN_OOK_RX, INPUT);
 #if DPIN_OOK_RX >= 14
   bitSet(PCMSK1, DPIN_OOK_RX - 14);
   bitSet(PCICR, PCIE1);
@@ -155,9 +154,9 @@ static void printWireval(void)
 #if defined(DPIN_OOK_TX)
 static void TxShortPulse(void)
 {
-  digitalWriteFast(DPIN_OOK_TX, HIGH);
+  digitalWrite(DPIN_OOK_TX, HIGH);
   delayMicroseconds(OOK_TX_SHORT);
-  digitalWriteFast(DPIN_OOK_TX, LOW);
+  digitalWrite(DPIN_OOK_TX, LOW);
 }
 
 static void TxRaw(uint8_t v)
@@ -268,11 +267,11 @@ static void resetRf69(void)
 {
 #if defined(DPIN_RF69_RESET)
   const uint8_t pin = 7;
-  pinModeFast(pin, OUTPUT);
-  digitalWriteFast(pin, HIGH);
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, HIGH);
   delayMicroseconds(100);
-  digitalWriteFast(pin, LOW);
-  pinModeFast(pin, INPUT);
+  digitalWrite(pin, LOW);
+  pinMode(pin, INPUT);
   delay(5);
   Serial.println(F("RFM reset"));
 #endif // DPIN_RF69_RESET
@@ -329,7 +328,7 @@ static void handleCommand(void)
     break;
   case 'z':
     rf69ook_dumpRegs();
-    Serial.print(F("RX:")); Serial.println(digitalReadFast(DPIN_OOK_RX));
+    Serial.print(F("RX:")); Serial.println(digitalRead(DPIN_OOK_RX));
     break;
   case ']':
     setRf69Thresh(rf69ook_readReg(0x1d)+4);
@@ -494,7 +493,7 @@ static void decodeRxPacket(void)
     decodePowermon(val16 & 0xfffc);
     g_RxDirty = true;
     g_RxLast = millis();
-    digitalWriteFast(DPIN_LED, HIGH);
+    digitalWrite(DPIN_LED, HIGH);
   }
   else
   {
@@ -506,9 +505,9 @@ static void decodeRxPacket(void)
 static void txSetup(void)
 {
 #if defined(DPIN_OOK_TX)
-  pinModeFast(DPIN_OOK_TX, OUTPUT);
-  pinModeFast(DPIN_STARTTX_BUTTON, INPUT);
-  digitalWriteFast(DPIN_STARTTX_BUTTON, HIGH);
+  pinMode(DPIN_OOK_TX, OUTPUT);
+  pinMode(DPIN_STARTTX_BUTTON, INPUT);
+  digitalWrite(DPIN_STARTTX_BUTTON, HIGH);
 
   wireval.hdr = 0xfe;
   g_TxTemperature = tempFToCnt(116.22);
@@ -559,7 +558,7 @@ static void ookTx(void)
     if (g_TxCnt > 5)
       g_TxCnt = 0;
 
-    digitalWriteFast(DPIN_LED, LOW);
+    digitalWrite(DPIN_LED, LOW);
     g_LastTx = millis();
   }
 #endif //defined(DPIN_OOK_TX)
@@ -602,7 +601,7 @@ static void ookRx(void)
   {
     Serial.print('['); Serial.print(millis(), DEC); Serial.println(F("] Missed"));
     g_RxLast = millis();
-    digitalWriteFast(DPIN_LED, LOW);
+    digitalWrite(DPIN_LED, LOW);
   }
 #endif // DPIN_OOK_RX
 }
@@ -611,7 +610,7 @@ void setup() {
   Serial.begin(38400);
   Serial.println(F("$UCID,Powermon433,"__DATE__" "__TIME__));
 
-  pinModeFast(DPIN_LED, OUTPUT);
+  pinMode(DPIN_LED, OUTPUT);
   if (rf69ook_init())
     Serial.println(F("RF69 initialized"));
 
