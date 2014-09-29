@@ -7,7 +7,7 @@
 
   Original OOK interrupt and decoder based on jeelib "ookRelay2" project https://github.com/jcw/jeelib
   Protocol decoding by "redgreen" https://github.com/merbanan/rtl_433
-    via Stewart Russell's blog http://scrus.org/
+    via Stewart Russell's blog http://scruss.com/
   Additional work and porting to ATmega by Bryan Mayland
 */
 #include <util/atomic.h>
