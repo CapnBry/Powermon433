@@ -266,12 +266,11 @@ static void setRf69Thresh(uint8_t val)
 static void resetRf69(void)
 {
 #if defined(DPIN_RF69_RESET)
-  const uint8_t pin = 7;
-  pinMode(pin, OUTPUT);
-  digitalWrite(pin, HIGH);
+  pinMode(DPIN_RF69_RESET, OUTPUT);
+  digitalWrite(DPIN_RF69_RESET, HIGH);
   delayMicroseconds(100);
-  digitalWrite(pin, LOW);
-  pinMode(pin, INPUT);
+  digitalWrite(DPIN_RF69_RESET, LOW);
+  pinMode(DPIN_RF69_RESET, INPUT);
   delay(5);
   Serial.println(F("RFM reset"));
 #endif // DPIN_RF69_RESET
