@@ -44,7 +44,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\Arduino\arduino-1.5.6-r2\hardware\arduino\avr\cores\arduino;C:\Arduino\arduino-1.5.6-r2\hardware\arduino\avr\variants\standard;C:\Users\bmayland\Documents\Arduino\libraries\digitalWriteFast;C:\Users\bmayland\Documents\Arduino\libraries\digitalWriteFast\utility;C:\Arduino\arduino-1.5.6-r2\libraries;C:\Arduino\arduino-1.5.6-r2\hardware\arduino\avr\libraries;C:\Program Files (x86)\Visual Micro\Visual Micro for Arduino\Micro Platforms\default\debuggers;C:\Users\bmayland\Documents\Arduino\libraries;c:\arduino\arduino-1.5.6-r2\hardware\tools\avr\avr\include\;c:\arduino\arduino-1.5.6-r2\hardware\tools\avr\avr\include\avr\;c:\arduino\arduino-1.5.6-r2\hardware\tools\avr\avr\;c:\arduino\arduino-1.5.6-r2\hardware\tools\avr\lib\gcc\avr\4.3.2\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Arduino\arduino-1.5.6-r2\hardware\arduino\avr\cores\arduino;C:\Arduino\arduino-1.5.6-r2\hardware\arduino\avr\variants\standard;C:\Arduino\arduino-1.5.6-r2\libraries;C:\Arduino\arduino-1.5.6-r2\hardware\arduino\avr\libraries;C:\Program Files (x86)\Visual Micro\Visual Micro for Arduino\Micro Platforms\default\debuggers;C:\Users\bmayland\Documents\Arduino\libraries;c:\arduino\arduino-1.5.6-r2\hardware\tools\avr\avr\include\;c:\arduino\arduino-1.5.6-r2\hardware\tools\avr\avr\include\avr\;c:\arduino\arduino-1.5.6-r2\hardware\tools\avr\avr\;c:\arduino\arduino-1.5.6-r2\hardware\tools\avr\lib\gcc\avr\4.3.2\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ForcedIncludeFiles>C:\Users\bmayland\Documents\GitHub Projects\Powermon433\arduino\Powermon433\Visual Micro\.Powermon433.vsarduino.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
       <IgnoreStandardIncludePath>true</IgnoreStandardIncludePath>
       <PreprocessorDefinitions>__AVR_ATmega328p__;__AVR_ATmega328P__;ARDUINO=156;ARDUINO_MAIN;__AVR__;__avr__;F_CPU=16000000L;__cplusplus;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -74,6 +74,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="rf69_ook.h" />
+    <ClInclude Include="temp_lerp.h" />
     <ClInclude Include="Visual Micro\.Powermon433.vsarduino.h" />
   </ItemGroup>
   <ItemGroup>

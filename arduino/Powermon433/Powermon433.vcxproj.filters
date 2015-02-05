@@ -24,6 +24,9 @@
     <ClInclude Include="rf69_ook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="temp_lerp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="rf69_ook.cpp">

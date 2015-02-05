@@ -12,6 +12,7 @@
 */
 #include <util/atomic.h>
 #include "rf69_ook.h"
+#include "temp_lerp.h"
 
 //#define DPIN_OOK_TX         3
 #define DPIN_STARTTX_BUTTON 6
@@ -465,8 +466,7 @@ static void decodePowermon(uint16_t val16)
     break;
 
   case OOK_PACKET_TEMP:
-    //float f = decoder.data[1] * 0.823 - 28.63;
-    g_RxTemperature = (int8_t)(decoder.data[1] * 210U / 256U) - 28;
+    g_RxTemperature = temp_lerp(decoder.data[1]);
     g_RxFlags = decoder.data[0];
     break;
 
