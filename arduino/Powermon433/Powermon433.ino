@@ -381,7 +381,7 @@ static void resetDecoder(void)
 
 static bool decoderBusy()
 {
-  return decoder.state || decoder.bit || decoder.pos;
+  return g_RxDirty || decoder.state || decoder.bit || decoder.pos;
 }
 
 static void decoderAddBit(uint8_t bit)
@@ -634,7 +634,7 @@ static void ookRx(void)
       offset = 2;
     else if (g_RxErrCnt > 250)
       offset = 1;
-    else if (g_RxErrCnt < 5)
+    else if (g_RxErrCnt < 1)
       offset = -1;
 
     if (offset != 0)
