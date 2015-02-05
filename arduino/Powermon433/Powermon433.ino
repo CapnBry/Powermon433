@@ -64,6 +64,9 @@ static uint16_t g_RxWattHours;
 static bool g_RxDirty;
 static uint32_t g_RxLast;
 static uint8_t g_RxRssi;
+static uint32_t g_RxErrStart;
+static uint16_t g_RxErrCnt;
+static uint8_t g_RxOokFloor;
 
 #if DPIN_OOK_RX >= 14
 #define VECT PCINT1_vect
@@ -258,9 +261,13 @@ static void setRF69Freq(char *buf)
 
 static void setRf69Thresh(uint8_t val)
 {
-  Serial.print(F("OokFixedThresh="));
+#if defined(DUMP_RX)
+  Serial.print(F("Errcount: ")); Serial.print(g_RxErrCnt, DEC);
+  Serial.print(F(" OokFixedThresh="));
   Serial.println(val, DEC);
+#endif
   rf69ook_writeReg(0x1d, val);
+  g_RxOokFloor = val;
 }
 
 static void resetRf69(void)
@@ -330,10 +337,10 @@ static void handleCommand(void)
     Serial.print(F("RX:")); Serial.println(digitalRead(DPIN_OOK_RX));
     break;
   case ']':
-    setRf69Thresh(rf69ook_readReg(0x1d)+4);
+    setRf69Thresh(g_RxOokFloor+4);
     break;
   case '[':
-    setRf69Thresh(rf69ook_readReg(0x1d)-4);
+    setRf69Thresh(g_RxOokFloor-4);
     break;
   case '*':
     resetRf69();
@@ -371,6 +378,11 @@ static void resetDecoder(void)
   decoder.state = 0;
 }
 
+static bool decoderBusy()
+{
+  return decoder.state || decoder.bit || decoder.pos;
+}
+
 static void decoderAddBit(uint8_t bit)
 {
   decoder.data[decoder.pos] = (decoder.data[decoder.pos] << 1) | bit;
@@ -384,9 +396,11 @@ static void decoderAddBit(uint8_t bit)
 
 static bool decodeRxPulse(uint16_t width)
 {
+  //Serial.print(width, DEC);
   // 500,1000,1500 usec pulses with 25% tolerance
   if (width > 375 && width < 1875)
   {
+    //Serial.print(' ');
     // The only "extra long" long signals the end of the preamble
     if (width > 1200)
     {
@@ -419,6 +433,12 @@ static bool decodeRxPulse(uint16_t width)
       return false;
     }
   }  // if proper width
+  else
+  {
+    //Serial.print('X');
+    if (g_RxErrCnt < 0xffff)
+      ++g_RxErrCnt;
+  }
 
 #if defined(DUMP_RX)
   // Some debug dump of where the decoder went wrong
@@ -596,11 +616,32 @@ static void ookRx(void)
 
     g_RxDirty = false;
   }
+
   else if (g_RxLast != 0 && (millis() - g_RxLast) > 32000U)
   {
     Serial.print('['); Serial.print(millis(), DEC); Serial.println(F("] Missed"));
     g_RxLast = millis();
     digitalWrite(DPIN_LED, LOW);
+    resetDecoder();
+  }
+
+  else if (!decoderBusy() && (millis() - g_RxErrStart) > 5000U)
+  {
+    int8_t offset = 0;
+    if (g_RxErrCnt > 1000)
+      offset = 4;
+    else if (g_RxErrCnt > 500)
+      offset = 2;
+    else if (g_RxErrCnt > 250)
+      offset = 1;
+    else if (g_RxErrCnt < 5)
+      offset = -1;
+
+    if (offset != 0)
+      setRf69Thresh(g_RxOokFloor + offset);
+
+    g_RxErrStart = millis();
+    g_RxErrCnt = 0;
   }
 #endif // DPIN_OOK_RX
 }
@@ -611,7 +652,10 @@ void setup() {
 
   pinMode(DPIN_LED, OUTPUT);
   if (rf69ook_init())
+  {
     Serial.println(F("RF69 initialized"));
+    setRf69Thresh(0x30);
+  }
 
   txSetup();
   rxSetup();
