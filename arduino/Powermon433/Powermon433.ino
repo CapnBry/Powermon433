@@ -24,7 +24,7 @@
 #define DEFAULT_TX_ID 0xfdcc
 
 // If defined will dump all the encoded RX data, and partial decode fails
-#define DUMP_RX
+//#define DUMP_RX
 
 static uint16_t g_TxId;
 static uint8_t g_TxCnt;
@@ -617,9 +617,10 @@ static void ookRx(void)
     g_RxDirty = false;
   }
 
-  else if (g_RxLast != 0 && (millis() - g_RxLast) > 32000U)
+  else if ((millis() - g_RxLast) > 32000U)
   {
-    Serial.print('['); Serial.print(millis(), DEC); Serial.println(F("] Missed"));
+    Serial.print('['); Serial.print(millis(), DEC); Serial.print(F("] Missed (floor "));
+    Serial.print(g_RxOokFloor, DEC); Serial.println(')');
     g_RxLast = millis();
     digitalWrite(DPIN_LED, LOW);
     resetDecoder();
