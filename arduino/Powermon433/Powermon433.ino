@@ -68,6 +68,7 @@ static uint8_t g_RxRssi;
 static uint32_t g_RxErrStart;
 static uint16_t g_RxErrCnt;
 static uint8_t g_RxOokFloor;
+static bool g_RxOokFloorVerbose;
 
 #if DPIN_OOK_RX >= 14
 #define VECT PCINT1_vect
@@ -405,7 +406,9 @@ static bool decodeRxPulse(uint16_t width)
     // The only "extra long" long signals the end of the preamble
     if (width > 1200)
     {
+#if defined(DPIN_RF69_RESET)
       rf69ook_startRssi();
+#endif
       resetDecoder();
       return false;
     }
@@ -478,8 +481,8 @@ static void decodePowermon(uint16_t val16)
 
 static void printRssi(void)
 {
-  Serial.print(F(" (Rssi -")); Serial.print(g_RxRssi/2, DEC);
-  Serial.println(F(" dBm)"));
+  Serial.print(F(" Rssi: -")); Serial.print(g_RxRssi/2, DEC);
+  Serial.print(F(" dBm, Floor: ")); Serial.print(g_RxOokFloor, DEC);
 }
 
 static void decodeRxPacket(void)
@@ -501,6 +504,7 @@ static void decodeRxPacket(void)
     Serial.print(F("NEW DEVICE id="));
     Serial.print(val16, HEX);
     printRssi();
+    Serial.println();
     return;
   }
 
@@ -518,6 +522,7 @@ static void decodeRxPacket(void)
   {
     Serial.print(F("CRC ERR"));
     printRssi();
+    Serial.println();
   }
 }
 
@@ -596,7 +601,9 @@ static void ookRx(void)
   {
     if (decodeRxPulse(v) == 1)
     {
+#if defined(DPIN_RF69_RESET)
       g_RxRssi = rf69ook_Rssi();
+#endif
       decodeRxPacket();
       resetDecoder();
     }
@@ -611,8 +618,9 @@ static void ookRx(void)
     Serial.print(F("Energy: ")); Serial.print(g_RxWattHours, DEC);
     Serial.print(F(" Wh, Power: ")); Serial.print(g_RxWatts, DEC);
     Serial.print(F(" W, Temp: ")); Serial.print(g_RxTemperature, DEC);
-    Serial.print(F(" F"));
+    Serial.print(F(" F, "));
     printRssi();
+    Serial.print(F(", LowBat: ")); Serial.println(g_RxFlags >> 7, DEC);
 
     g_RxDirty = false;
   }
@@ -626,6 +634,7 @@ static void ookRx(void)
     resetDecoder();
   }
 
+#if defined(DPIN_RF69_RESET)
   else if (!decoderBusy() && (millis() - g_RxErrStart) > 5000U)
   {
     int8_t offset = 0;
@@ -643,7 +652,13 @@ static void ookRx(void)
 
     g_RxErrStart = millis();
     g_RxErrCnt = 0;
+
+    if (g_RxOokFloorVerbose)
+    {
+      Serial.print("RxOokFloor="); Serial.println(g_RxOokFloor, DEC);
+    }
   }
+#endif
 #endif // DPIN_OOK_RX
 }
 
