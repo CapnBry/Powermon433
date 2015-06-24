@@ -56,6 +56,13 @@ static struct tagDecoder
   uint8_t data[4];
 } decoder;
 
+static volatile struct tagPulseBuffer
+{
+  uint8_t head; // where new elements are pushed
+  uint8_t tail; // where elements are popped
+  uint16_t pulse[8];
+} pulsebuff;
+
 #if defined(DPIN_OOK_RX)
 static int8_t g_RxTemperature;
 static uint8_t g_RxFlags;
@@ -78,7 +85,35 @@ static bool g_RxOokFloorVerbose;
 #define VECT PCINT2_vect
 #endif
 
-volatile uint16_t pulse_433;
+static uint8_t ringbuffSize(void)
+{
+  return sizeof(pulsebuff.pulse)/sizeof(*pulsebuff.pulse);
+}
+
+static void ringbuffPush(uint16_t v)
+{
+  // Not thread-safe, only call from ISR
+  uint8_t newIdx = (pulsebuff.head + 1) % ringbuffSize();
+  if (newIdx != pulsebuff.tail)
+  {
+    pulsebuff.pulse[pulsebuff.head] = v;
+    pulsebuff.head = newIdx;
+  }
+}
+
+static uint16_t ringbuffPop(void)
+{
+  // Threadsafe
+  ATOMIC_BLOCK(ATOMIC_FORCEON)
+  {
+    uint8_t idx = pulsebuff.tail;
+    if (pulsebuff.head == idx)
+      return 0;
+    uint16_t retVal = pulsebuff.pulse[idx];
+    pulsebuff.tail = (idx + 1) % ringbuffSize();
+    return retVal;
+  }
+}
 
 static void pinChange(void)
 {
@@ -86,8 +121,7 @@ static void pinChange(void)
 
   uint16_t now = micros();
   uint16_t cnt = now - last_433;
-  if (cnt > 10)
-    pulse_433 = cnt;
+  ringbuffPush(cnt);
 
   last_433 = now;
 }
@@ -241,6 +275,16 @@ static uint8_t tempFToCnt(float temp)
 }
 #endif // defined(DPIN_OOK_TX)
 
+static void setRF69FreqL(uint32_t khz)
+{
+  uint32_t val = khz * (524288.0 / 32000.0);
+  rf69ook_writeReg(0x01, 0x04); // standby
+  rf69ook_writeReg(0x07, (val >> 16) & 0xff);
+  rf69ook_writeReg(0x08, (val >> 8) & 0xff);
+  rf69ook_writeReg(0x09, val & 0xff);
+  rf69ook_writeReg(0x01, 0x10); // RX
+}
+
 static void setRF69Freq(char *buf)
 {
   static uint32_t khz;
@@ -252,24 +296,21 @@ static void setRF69Freq(char *buf)
     khz = atol(buf);
 
   Serial.print(khz, DEC); Serial.println(F("kHz"));
-
-  uint32_t val = khz * (524288.0 / 32000.0);
-  rf69ook_writeReg(0x01, 0x04); // standby
-  rf69ook_writeReg(0x07, (val >> 16) & 0xff);
-  rf69ook_writeReg(0x08, (val >> 8) & 0xff);
-  rf69ook_writeReg(0x09, val & 0xff);
-  rf69ook_writeReg(0x01, 0x10); // RX
+  setRF69FreqL(khz);
 }
 
 static void setRf69Thresh(uint8_t val)
 {
-#if defined(DUMP_RX)
-  Serial.print(F("Errcount: ")); Serial.print(g_RxErrCnt, DEC);
-  Serial.print(F(" OokFixedThresh="));
-  Serial.println(val, DEC);
-#endif
-  rf69ook_writeReg(0x1d, val);
-  g_RxOokFloor = val;
+  if (g_RxOokFloorVerbose)
+  {
+    Serial.print("E="); Serial.print(g_RxErrCnt, DEC);
+    Serial.print(" T="); Serial.println(val, DEC);
+  }
+  if (g_RxOokFloor != val)
+  {
+    rf69ook_writeReg(0x1d, val);
+    g_RxOokFloor = val;
+  }
 }
 
 static void resetRf69(void)
@@ -281,6 +322,7 @@ static void resetRf69(void)
   digitalWrite(DPIN_RF69_RESET, LOW);
   pinMode(DPIN_RF69_RESET, INPUT);
   delay(5);
+  rf69ook_init();
   Serial.println(F("RFM reset"));
 #endif // DPIN_RF69_RESET
 }
@@ -485,7 +527,7 @@ static void printRssi(void)
   Serial.print(F(" dBm, Floor: ")); Serial.print(g_RxOokFloor, DEC);
 }
 
-static void decodeRxPacket(void)
+static void dumpRxData(void)
 {
 #if defined(DUMP_RX)
   for (uint8_t i=0; i<decoder.pos; ++i)
@@ -496,6 +538,11 @@ static void decodeRxPacket(void)
   }
   Serial.println();
 #endif
+}
+
+static void decodeRxPacket(void)
+{
+  dumpRxData();
 
   uint16_t val16 = *(uint16_t *)decoder.data;
   if (crc8(decoder.data, 3) == 0)
@@ -591,13 +638,8 @@ static void ookTx(void)
 static void ookRx(void)
 {
 #if defined(DPIN_OOK_RX)
-  uint16_t v;
-  ATOMIC_BLOCK(ATOMIC_FORCEON)
-  {
-    v = pulse_433;
-    pulse_433 = 0;
-  }
-  if (v != 0)
+  uint16_t v = ringbuffPop();
+  while (v != 0)
   {
     if (decodeRxPulse(v) == 1)
     {
@@ -607,10 +649,11 @@ static void ookRx(void)
       decodeRxPacket();
       resetDecoder();
     }
+    v = ringbuffPop();
   }
 
   // If it has been more than 250ms since the last receive, dump the data
-  else if (g_RxDirty && (millis() - g_RxLast) > 250U)
+  if (g_RxDirty && (millis() - g_RxLast) > 250U)
   {
  #if defined(DUMP_RX)
    Serial.print('['); Serial.print(millis(), DEC); Serial.print(F("] "));
@@ -618,7 +661,7 @@ static void ookRx(void)
     Serial.print(F("Energy: ")); Serial.print(g_RxWattHours, DEC);
     Serial.print(F(" Wh, Power: ")); Serial.print(g_RxWatts, DEC);
     Serial.print(F(" W, Temp: ")); Serial.print(g_RxTemperature, DEC);
-    Serial.print(F(" F, "));
+    Serial.print(F(" F,"));
     printRssi();
     Serial.print(F(", LowBat: ")); Serial.println(g_RxFlags >> 7, DEC);
 
@@ -644,7 +687,7 @@ static void ookRx(void)
       offset = 2;
     else if (g_RxErrCnt > 250)
       offset = 1;
-    else if (g_RxErrCnt < 1)
+    else if (g_RxErrCnt < 5)
       offset = -1;
 
     if (offset != 0)
@@ -652,11 +695,6 @@ static void ookRx(void)
 
     g_RxErrStart = millis();
     g_RxErrCnt = 0;
-
-    if (g_RxOokFloorVerbose)
-    {
-      Serial.print("RxOokFloor="); Serial.println(g_RxOokFloor, DEC);
-    }
   }
 #endif
 #endif // DPIN_OOK_RX
