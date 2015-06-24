@@ -58,7 +58,8 @@ bool rf69ook_init(void)
     return false;
 
   rf69ook_writeReg(0x01, 0x04); // mode standby
-  rf69ook_writeReg(0x02, 0b01101000); // no shaping, OOK modulation, continuous mode with no sync
+  //rf69ook_writeReg(0x02, 0b01101000); // no shaping, OOK modulation, continuous mode with no sync
+  rf69ook_writeReg(0x02, 0b01001000); // no shaping, OOK modulation, continuous mode with sync
   rf69ook_writeReg(0x03, 0x3E); // bitrate=
   rf69ook_writeReg(0x04, 0x80); // 2000 bit = 500uS per bit
   // Frequency 433.845MHz / (32M >> 19)
@@ -70,8 +71,8 @@ bool rf69ook_init(void)
   //rf69ook_writeReg(0x19, 0b01000000);  // Stock DdcFreq, 250khz
   //rf69ook_writeReg(0x19, 0b01010000); // Stock DdcFreq, 166khz
   //rf69ook_writeReg(0x19, 0b01001001); // Stock DdcFreq, 100Khz
-  rf69ook_writeReg(0x19, 0b01001010);  // Stock DdcFreq, 50khz
-  //rf69ook_writeReg(0x19, 0b01001011);  // Stock DdcFreq, 25khz
+  //rf69ook_writeReg(0x19, 0b01001010);  // Stock DdcFreq, 50khz
+  rf69ook_writeReg(0x19, 0b01001011);  // Stock DdcFreq, 25khz
   //rf69ook_writeReg(0x19, 0b01001100);  // Stock DdcFreq, 12.5khz
   //rf69ook_writeReg(0x19, 0b01001101); // 6.3khz
   //rf69ook_writeReg(0x19, 0b01001110); // 3.1khz
