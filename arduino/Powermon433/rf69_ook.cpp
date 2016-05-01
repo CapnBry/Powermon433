@@ -28,16 +28,15 @@ void rf69ook_writeReg(uint8_t reg, uint8_t val)
 
 uint8_t rf69ook_readReg(uint8_t reg)
 {
+  uint8_t retVal;
   ATOMIC_BLOCK(ATOMIC_FORCEON)
   {
-    uint8_t retVal;
     digitalWrite(SPI_SS, LOW);
     rf69ook_byte(reg);
     retVal = rf69ook_byte(0x00);
     digitalWrite(SPI_SS, HIGH);
-
-    return retVal;
   }
+  return retVal;
 }
 
 bool rf69ook_init(void)
@@ -92,6 +91,14 @@ bool rf69ook_init(void)
   //rf69ook_writeReg(0x2e, 0x18); // SYNC off, sync size 3, 0 errors
   //rf69ook_writeReg(0x2e, 0x98); // SYNC on, sync size 3, 0 errors (default)
   
+
+  // Packet Mode Setup (not working)
+  //rf69ook_writeReg(0x02, 0b00001000); // no shaping ook modulation packet mode
+  //rf69ook_writeReg(0x25, 0x40); // DIO0 = PayloadReady
+  //rf69ook_writeReg(0x2e, 0x00); // Sync word off
+  //rf69ook_writeReg(0x37, 0x00); // Packet fixed length, no CRC, no address filter
+  //rf69ook_writeReg(0x38, 0x02); // Payload length=2
+
   rf69ook_writeReg(0x01, 0x10); // mode Rx
   rf69ook_writeReg(0x1e, bit(1)); // AFC clear, must be set when in RX?
 
