@@ -53,7 +53,10 @@ static struct tagDecoder
   uint8_t state;
   uint8_t pos;
   uint8_t bit;
-  uint8_t data[4];
+  union {
+    uint8_t raw[4];
+    uint16_t val16[2];
+  } data;
 } decoder;
 
 static volatile struct tagPulseBuffer
@@ -104,15 +107,16 @@ static void ringbuffPush(uint16_t v)
 static uint16_t ringbuffPop(void)
 {
   // Threadsafe
+  uint16_t retVal;
   ATOMIC_BLOCK(ATOMIC_FORCEON)
   {
     uint8_t idx = pulsebuff.tail;
     if (pulsebuff.head == idx)
       return 0;
-    uint16_t retVal = pulsebuff.pulse[idx];
+    retVal = pulsebuff.pulse[idx];
     pulsebuff.tail = (idx + 1) % ringbuffSize();
-    return retVal;
   }
+  return retVal;
 }
 
 static void pinChange(void)
@@ -429,11 +433,11 @@ static bool decoderBusy()
 
 static void decoderAddBit(uint8_t bit)
 {
-  decoder.data[decoder.pos] = (decoder.data[decoder.pos] << 1) | bit;
+  decoder.data.raw[decoder.pos] = (decoder.data.raw[decoder.pos] << 1) | bit;
   if (++decoder.bit > 7)
   {
     decoder.bit = 0;
-    if (++decoder.pos >= sizeof(decoder.data))
+    if (++decoder.pos >= sizeof(decoder.data.raw))
       resetDecoder();
   }
 }
@@ -502,7 +506,7 @@ static bool decodeRxPulse(uint16_t width)
 
 static void decodePowermon(uint16_t val16)
 {
-  switch (decoder.data[0] & 3)
+  switch (decoder.data.raw[0] & 3)
   {
   case OOK_PACKET_INSTANT:
     // val16 is the number of milliseconds between blinks
@@ -511,8 +515,8 @@ static void decodePowermon(uint16_t val16)
     break;
 
   case OOK_PACKET_TEMP:
-    g_RxTemperature = temp_lerp(decoder.data[1]);
-    g_RxFlags = decoder.data[0];
+    g_RxTemperature = temp_lerp(decoder.data.raw[1]);
+    g_RxFlags = decoder.data.raw[0];
     break;
 
   case OOK_PACKET_TOTAL:
@@ -544,10 +548,10 @@ static void decodeRxPacket(void)
 {
   dumpRxData();
 
-  uint16_t val16 = *(uint16_t *)decoder.data;
-  if (crc8(decoder.data, 3) == 0)
+  uint16_t val16 = decoder.data.val16[0];
+  if (crc8(decoder.data.raw, 3) == 0)
   {
-    g_TxId = decoder.data[1] << 8 | decoder.data[0];
+    g_TxId = decoder.data.raw[1] << 8 | decoder.data.raw[0];
     Serial.print(F("NEW DEVICE id="));
     Serial.print(val16, HEX);
     printRssi();
@@ -556,9 +560,9 @@ static void decodeRxPacket(void)
   }
 
   val16 -= g_TxId;
-  decoder.data[0] = val16 & 0xff;
-  decoder.data[1] = val16 >> 8;
-  if (crc8(decoder.data, 3) == 0)
+  decoder.data.raw[0] = val16 & 0xff;
+  decoder.data.raw[1] = val16 >> 8;
+  if (crc8(decoder.data.raw, 3) == 0)
   {
     decodePowermon(val16 & 0xfffc);
     g_RxDirty = true;
@@ -702,7 +706,7 @@ static void ookRx(void)
 
 void setup() {
   Serial.begin(38400);
-  Serial.println(F("$UCID,Powermon433,"__DATE__" "__TIME__));
+  Serial.println(F("$UCID,Powermon433," __DATE__ " " __TIME__));
 
   pinMode(DPIN_LED, OUTPUT);
   if (rf69ook_init())

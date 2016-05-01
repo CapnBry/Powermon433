@@ -9,7 +9,7 @@ RFM MISO => Digital 12
 RFM SCK => Digital 13
 RFM DIO2 => Digital 8
 
-With the RF69 module, a frequency of 433.845MHz is tuned with a 50khz receive
+With the RF69 module, a frequency of 433.845MHz is tuned with a 25khz receive
 bandwidth. My module can receive data on this frequency right down to a 1.3Khz
 bandwidth so I am pretty sure this is accurate. The AFC and FEI blocks don't
 appear to work no matter where I trigger them, so I can't use them to adjust
