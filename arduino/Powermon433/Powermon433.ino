@@ -446,6 +446,8 @@ static bool decodeRxPulse(uint16_t width)
 {
   //Serial.print(width, DEC);
   // 500,1000,1500 usec pulses with 25% tolerance
+  // Short-Short = 1
+  // Short-Long  = 0
   if (width > 375 && width < 1875)
   {
     //Serial.print(' ');
