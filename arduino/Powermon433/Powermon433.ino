@@ -28,6 +28,7 @@
 
 static uint16_t g_TxId;
 static uint8_t g_TxCnt;
+static bool g_DiscoverPeriod;
 
 // Simulated TX values
 static uint16_t g_TxTemperature;
@@ -38,6 +39,7 @@ static uint16_t g_TxTotal;
 
 static char g_SerialBuff[40];
 
+#if defined(DPIN_OOK_TX)
 static struct tagWireVal
 {
   uint8_t hdr;
@@ -47,7 +49,16 @@ static struct tagWireVal
   } data;
   uint8_t crc;
 } wireval;
+#endif
 
+static volatile struct tagPulseBuffer
+{
+  uint8_t head; // where new elements are pushed
+  uint8_t tail; // where elements are popped
+  uint16_t pulse[8];
+} pulsebuff;
+
+#if defined(DPIN_OOK_RX)
 static struct tagDecoder
 {
   uint8_t state;
@@ -59,14 +70,6 @@ static struct tagDecoder
   } data;
 } decoder;
 
-static volatile struct tagPulseBuffer
-{
-  uint8_t head; // where new elements are pushed
-  uint8_t tail; // where elements are popped
-  uint16_t pulse[8];
-} pulsebuff;
-
-#if defined(DPIN_OOK_RX)
 static int8_t g_RxTemperature;
 static uint8_t g_RxFlags;
 static uint16_t g_RxWatts;
@@ -150,6 +153,7 @@ static void setupPinChangeInterrupt ()
 }
 #endif /* DPIN_OOK_RX */
 
+#if defined(DPIN_OOK_TX)
 static void printWireval(void)
 {
   Serial.print("Tx ");
@@ -163,6 +167,7 @@ static void printWireval(void)
   Serial.println();
   Serial.flush();
 }
+#endif
 
 // Short burst in uSec
 #define OOK_TX_SHORT 500
@@ -305,6 +310,7 @@ static void setRF69Freq(char *buf)
 
 static void setRf69Thresh(uint8_t val)
 {
+#if defined(DPIN_OOK_RX)
   if (g_RxOokFloorVerbose)
   {
     Serial.print("E="); Serial.print(g_RxErrCnt, DEC);
@@ -315,6 +321,7 @@ static void setRf69Thresh(uint8_t val)
     rf69ook_writeReg(0x1d, val);
     g_RxOokFloor = val;
   }
+#endif
 }
 
 static void resetRf69(void)
@@ -382,6 +389,7 @@ static void handleCommand(void)
     break;
   case 'z':
     rf69ook_dumpRegs();
+#if defined(DPIN_OOK_RX)
     Serial.print(F("RX:")); Serial.println(digitalRead(DPIN_OOK_RX));
     break;
   case ']':
@@ -389,6 +397,7 @@ static void handleCommand(void)
     break;
   case '[':
     setRf69Thresh(g_RxOokFloor-4);
+#endif
     break;
   case '*':
     resetRf69();
@@ -419,6 +428,7 @@ static void serial_doWork(void)
   }  /* while Serial */
 }
 
+#if defined(DPIN_OOK_RX)
 static void resetDecoder(void)
 {
   decoder.pos = 0;
@@ -527,6 +537,7 @@ static void decodePowermon(uint16_t val16)
   }
 }
 
+
 static void printRssi(void)
 {
   Serial.print(F(" Rssi: -")); Serial.print(g_RxRssi/2, DEC);
@@ -538,9 +549,9 @@ static void dumpRxData(void)
 #if defined(DUMP_RX)
   for (uint8_t i=0; i<decoder.pos; ++i)
   {
-    if (decoder.data[i] < 16)
+    if (decoder.data.raw[i] < 16)
       Serial.print('0');
-    Serial.print(decoder.data[i], HEX);
+    Serial.print(decoder.data.raw[i], HEX);
   }
   Serial.println();
 #endif
@@ -551,7 +562,7 @@ static void decodeRxPacket(void)
   dumpRxData();
 
   uint16_t val16 = decoder.data.val16[0];
-  if (crc8(decoder.data.raw, 3) == 0)
+  if (g_DiscoverPeriod && crc8(decoder.data.raw, 3) == 0)
   {
     g_TxId = decoder.data.raw[1] << 8 | decoder.data.raw[0];
     Serial.print(F("NEW DEVICE id="));
@@ -578,6 +589,7 @@ static void decodeRxPacket(void)
     Serial.println();
   }
 }
+#endif
 
 static void txSetup(void)
 {
@@ -606,7 +618,7 @@ static void ookTx(void)
 #if defined(DPIN_OOK_TX)
   static uint32_t g_LastTx;
 
-  if (digitalReadFast(DPIN_STARTTX_BUTTON) == LOW)
+  if (digitalRead(DPIN_STARTTX_BUTTON) == LOW)
   {
     for (uint8_t i=0; i<4; ++i)
     {
@@ -720,11 +732,15 @@ void setup() {
   txSetup();
   rxSetup();
 
+  g_DiscoverPeriod = true;
   g_TxId = DEFAULT_TX_ID;
 }
 
 void loop()
 {
+  // Discover period ends after 5 minutes, then our TxId is locked
+  g_DiscoverPeriod = g_DiscoverPeriod && millis() < (5 * 60 * 1000U);
+
   ookTx();
   ookRx();
   serial_doWork();
