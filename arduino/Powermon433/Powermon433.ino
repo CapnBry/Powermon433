@@ -178,6 +178,7 @@ static void printWireval(void)
 // Inter-ID-packet delay in msec
 #define OOK_ID_DELAY 225
 
+#define OOK_PACKET_TXID    0
 #define OOK_PACKET_INSTANT 1
 #define OOK_PACKET_TEMP    2
 #define OOK_PACKET_TOTAL   3
@@ -562,7 +563,9 @@ static void decodeRxPacket(void)
   dumpRxData();
 
   uint16_t val16 = decoder.data.val16[0];
-  if (g_DiscoverPeriod && crc8(decoder.data.raw, 3) == 0)
+  if (g_DiscoverPeriod && 
+    (decoder.data.raw[0] & 3) == OOK_PACKET_TXID &&
+    crc8(decoder.data.raw, 3) == 0)
   {
     g_TxId = decoder.data.raw[1] << 8 | decoder.data.raw[0];
     Serial.print(F("NEW DEVICE id="));
